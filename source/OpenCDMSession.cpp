@@ -17,9 +17,9 @@
  * limitations under the License.
  */
 
+#include "OpenCDMSession.h"
 #include "MediaKeysClient.h"
 #include "RialtoGStreamerEMEProtectionMetadata.h"
-#include <OpenCDMSession.h>
 #include <WPEFramework/core/Trace.h>
 #include <gst/base/base.h>
 #include <gst/gst.h>
@@ -195,15 +195,31 @@ bool OpenCDMSession::updateSession(const std::vector<uint8_t> &license)
 
 bool OpenCDMSession::getChallengeData(std::vector<uint8_t> &challengeData)
 {
-    bool result = false;
-
-    if (0 != mChallengeData.size())
+    std::shared_ptr<CdmBackend> cdm = mCDMBackend.lock();
+    if ((mInitDataType != firebolt::rialto::InitDataType::UNKNOWN) && (-1 != mRialtoSessionId) && (cdm))
     {
-        challengeData = mChallengeData;
-        result = true;
-    }
+        firebolt::rialto::MediaKeyErrorStatus status =
+            cdm->getMediaKeys()->generateRequest(mRialtoSessionId, mInitDataType, mInitData);
 
-    return result;
+        if (status == firebolt::rialto::MediaKeyErrorStatus::OK)
+        {
+            TRACE_L2("Successfully generated the request for the session");
+            initializeCdmKeySessionId();
+        }
+        else
+        {
+            TRACE_L1("Failed to request for the session. Got status %u and drm error %u", status, getLastDrmError());
+            return false;
+        }
+    }
+    else
+    {
+        return false;
+    }
+    std::unique_lock<std::mutex> lock{mMutex};
+    mChallengeCv.wait(lock, [this]() { return !mChallengeData.empty(); });
+    challengeData = mChallengeData;
+    return true;
 }
 
 void OpenCDMSession::addProtectionMeta(GstBuffer *buffer, GstBuffer *subSample, const uint32_t subSampleCount,
@@ -294,15 +310,14 @@ bool OpenCDMSession::selectKeyId(const std::vector<uint8_t> &keyId)
 {
     bool result{false};
 
-    // TODO LLDEV-23468: Implement or remove
+    std::shared_ptr<CdmBackend> cdm = mCDMBackend.lock();
+
+    if ((-1 != mRialtoSessionId) && (cdm))
+    {
+        result = cdm->getMediaKeys()->selectKeyId(mRialtoSessionId, keyId) == firebolt::rialto::MediaKeyErrorStatus::OK;
+    }
 
     return result;
-}
-
-bool OpenCDMSession::storeLicenseData(const std::vector<uint8_t> &requestData, std::vector<uint8_t> &secureStopID)
-{
-    TRACE_L1("Failed to store license data - Not supported");
-    return false;
 }
 
 void OpenCDMSession::onLicenseRequest(int32_t keySessionId, const std::vector<unsigned char> &licenseRequestMessage,
@@ -310,8 +325,7 @@ void OpenCDMSession::onLicenseRequest(int32_t keySessionId, const std::vector<un
 {
     if (keySessionId == mRialtoSessionId)
     {
-        // Update challenge in object
-        mChallengeData = licenseRequestMessage;
+        updateChallenge(licenseRequestMessage);
 
         if ((mCallbacks) && (mCallbacks->process_challenge_callback))
         {
@@ -325,8 +339,7 @@ void OpenCDMSession::onLicenseRenewal(int32_t keySessionId, const std::vector<un
 {
     if (keySessionId == mRialtoSessionId)
     {
-        // Update challenge in object
-        mChallengeData = licenseRenewalMessage;
+        updateChallenge(licenseRenewalMessage);
 
         if ((mCallbacks) && (mCallbacks->process_challenge_callback))
         {
@@ -334,6 +347,13 @@ void OpenCDMSession::onLicenseRenewal(int32_t keySessionId, const std::vector<un
                                                    licenseRenewalMessage.size());
         }
     }
+}
+
+void OpenCDMSession::updateChallenge(const std::vector<unsigned char> &challenge)
+{
+    std::unique_lock<std::mutex> lock{mMutex};
+    mChallengeData = challenge;
+    mChallengeCv.notify_one();
 }
 
 void OpenCDMSession::onKeyStatusesChanged(int32_t keySessionId, const firebolt::rialto::KeyStatusVector &keyStatuses)
