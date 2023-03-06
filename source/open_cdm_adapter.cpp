@@ -21,9 +21,6 @@
 #include <WPEFramework/core/Trace.h>
 #include <opencdm/open_cdm_adapter.h>
 
-struct _GstCaps;
-typedef struct _GstCaps GstCaps;
-
 OpenCDMError opencdm_gstreamer_session_decrypt_ex(struct OpenCDMSession *session, GstBuffer *buffer,
                                                   GstBuffer *subSample, const uint32_t subSampleCount, GstBuffer *IV,
                                                   GstBuffer *keyID, uint32_t initWithLast15, GstCaps *caps)
@@ -44,6 +41,25 @@ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession *session, G
     return opencdm_gstreamer_session_decrypt_ex(session, buffer, subSample, subSampleCount, IV, keyID, initWithLast15,
                                                 nullptr);
 }
+
+#ifdef RIALTO_ENABLE_DECRYPT_BUFFER
+OpenCDMError opencdm_gstreamer_session_decrypt_buffer(struct OpenCDMSession *session, GstBuffer *buffer, GstCaps *caps)
+{
+    if (nullptr == session)
+    {
+        TRACE_L1("Failed to decrypt - session is NULL");
+        return ERROR_FAIL;
+    }
+
+    if (!session->addProtectionMeta(buffer))
+    {
+        TRACE_L1("Failed to decrypt - could not append protection meta");
+        return ERROR_FAIL;
+    }
+
+    return ERROR_NONE;
+}
+#endif
 
 OpenCDMError opencdm_gstreamer_transform_caps(GstCaps **caps)
 {

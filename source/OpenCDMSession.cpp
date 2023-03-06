@@ -264,6 +264,47 @@ void OpenCDMSession::addProtectionMeta(GstBuffer *buffer, GstBuffer *subSample, 
     rialto_mse_add_protection_metadata(buffer, info);
 }
 
+bool OpenCDMSession::addProtectionMeta(GstBuffer *buffer)
+{
+    GstProtectionMeta *protectionMeta = reinterpret_cast<GstProtectionMeta *>(gst_buffer_get_protection_meta(buffer));
+    if (!protectionMeta)
+    {
+        TRACE_L1("No protection meta added to the buffer");
+        return false;
+    }
+
+    GstStructure *info = gst_structure_copy(protectionMeta->info);
+    gst_structure_set(info, "mks_id", G_TYPE_INT, mRialtoSessionId, NULL);
+
+    if (!gst_structure_has_field_typed(info, "encrypted", G_TYPE_BOOLEAN))
+    {
+        // Set encrypted
+        gst_structure_set(info, "encrypted", G_TYPE_BOOLEAN, TRUE, NULL);
+    }
+
+    if (gst_structure_has_field_typed(info, "iv", GST_TYPE_BUFFER) &&
+        !gst_structure_has_field_typed(info, "iv_size", G_TYPE_UINT))
+    {
+        const GValue *value = gst_structure_get_value(info, "iv");
+        if (value)
+        {
+            GstBuffer *ivBuffer = gst_value_get_buffer(value);
+            // Set iv size
+            gst_structure_set(info, "iv_size", G_TYPE_UINT, gst_buffer_get_size(ivBuffer), NULL);
+        }
+    }
+
+    if (!gst_structure_has_field_typed(info, "encryption_scheme", G_TYPE_UINT))
+    {
+        // Not used but required
+        gst_structure_set(info, "encryption_scheme", G_TYPE_UINT, 0, NULL);
+    }
+
+    rialto_mse_add_protection_metadata(buffer, info);
+
+    return true;
+}
+
 bool OpenCDMSession::closeSession()
 {
     bool result = false;

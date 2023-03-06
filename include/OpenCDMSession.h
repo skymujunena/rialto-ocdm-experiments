@@ -31,7 +31,9 @@
 #include <opencdm/open_cdm.h>
 #include <vector>
 
+struct _GstCaps;
 struct _GstBuffer;
+typedef struct _GstCaps GstCaps;
 typedef struct _GstBuffer GstBuffer;
 
 class OpenCDMSession : public firebolt::rialto::IMediaKeysClient
@@ -64,6 +66,7 @@ public:
     bool selectKeyId(const std::vector<uint8_t> &keyId);
     void addProtectionMeta(GstBuffer *buffer, GstBuffer *subSample, const uint32_t subSampleCount, GstBuffer *IV,
                            GstBuffer *keyID, uint32_t initWithLast15);
+    bool addProtectionMeta(GstBuffer *buffer);
     bool closeSession();
     bool removeSession();
     KeyStatus status(const std::vector<uint8_t> &key) const;
