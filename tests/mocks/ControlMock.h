@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
- * Copyright 2022 Sky UK
+ * Copyright 2023 Sky UK
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,25 @@
  * limitations under the License.
  */
 
-#ifndef OCDM_RIALTO_UTILS_H_
-#define OCDM_RIALTO_UTILS_H_
+#ifndef FIREBOLT_RIALTO_CONTROL_MOCK_H
+#define FIREBOLT_RIALTO_CONTROL_MOCK_H
 
-#include <IMediaKeys.h>
-#include <memory>
-#include <string>
+#include "IControl.h"
+#include <gmock/gmock.h>
 
-bool isNetflixKeysystem(const std::string &keySystem);
+namespace firebolt::rialto
+{
+class ControlFactoryMock : public IControlFactory
+{
+public:
+    MOCK_METHOD(std::shared_ptr<IControl>, createControl, (), (const, override));
+};
 
-#endif // OCDM_RIALTO_UTILS_H_
+class ControlMock : public IControl
+{
+public:
+    MOCK_METHOD(bool, registerClient, (std::weak_ptr<IControlClient> client, ApplicationState &appState), (override));
+};
+} // namespace firebolt::rialto
+
+#endif // FIREBOLT_RIALTO_CONTROL_MOCK_H

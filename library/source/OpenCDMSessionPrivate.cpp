@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-#include "OpenCDMSession.h"
+#include "OpenCDMSessionPrivate.h"
 #include "RialtoGStreamerEMEProtectionMetadata.h"
 #include <gst/base/base.h>
 #include <gst/gst.h>
@@ -60,41 +60,26 @@ const KeyStatus convertKeyStatus(const firebolt::rialto::KeyStatus &keyStatus)
 const std::string kDefaultSessionId{"0"};
 } // namespace
 
-OpenCDMSession::OpenCDMSession(const std::shared_ptr<ICdmBackend> &cdm,
-                               const std::shared_ptr<IMessageDispatcher> &messageDispatcher,
-                               const LicenseType &sessionType, OpenCDMSessionCallbacks *callbacks, void *context,
-                               const std::string &initDataType, const std::vector<uint8_t> &initData)
-    : m_log{"OpenCDMSession"}, m_context(context), m_cdmBackend(cdm), m_messageDispatcher(messageDispatcher),
+OpenCDMSessionPrivate::OpenCDMSessionPrivate(const std::shared_ptr<ICdmBackend> &cdm,
+                                             const std::shared_ptr<IMessageDispatcher> &messageDispatcher,
+                                             const LicenseType &sessionType, OpenCDMSessionCallbacks *callbacks,
+                                             void *context, const std::string &initDataType,
+                                             const std::vector<uint8_t> &initData)
+    : m_log{"OpenCDMSessionPrivate"}, m_context(context), m_cdmBackend(cdm), m_messageDispatcher(messageDispatcher),
       m_rialtoSessionId(firebolt::rialto::kInvalidSessionId), m_callbacks(callbacks),
       m_sessionType(getRialtoSessionType(sessionType)), m_initDataType(getRialtoInitDataType(initDataType)),
       m_initData(initData), m_isInitialized{false}
 {
 }
 
-OpenCDMSession::~OpenCDMSession() {}
+OpenCDMSessionPrivate::~OpenCDMSessionPrivate() {}
 
-bool OpenCDMSession::initialize()
+bool OpenCDMSessionPrivate::initialize()
 {
-    if (!m_cdmBackend || !m_messageDispatcher)
-    {
-        m_log << error << "Cdm/message dispatcher is NULL or not initialized";
-        return false;
-    }
-    if (!m_isInitialized)
-    {
-        if (!m_cdmBackend->createKeySession(m_sessionType, false, m_rialtoSessionId))
-        {
-            m_log << error << "Failed to create a session. Got drm error %u", getLastDrmError();
-            return false;
-        }
-        m_messageDispatcherClient = m_messageDispatcher->createClient(this);
-        m_isInitialized = true;
-        m_log << info << "Successfully created a session";
-    }
-    return true;
+    return initialize(false);
 }
 
-bool OpenCDMSession::initialize(bool isLDL)
+bool OpenCDMSessionPrivate::initialize(bool isLDL)
 {
     if (!m_cdmBackend || !m_messageDispatcher)
     {
@@ -115,10 +100,9 @@ bool OpenCDMSession::initialize(bool isLDL)
     return true;
 }
 
-bool OpenCDMSession::generateRequest(const std::string &initDataType, const std::vector<uint8_t> &initData,
-                                     const std::vector<uint8_t> &cdmData)
+bool OpenCDMSessionPrivate::generateRequest(const std::string &initDataType, const std::vector<uint8_t> &initData,
+                                            const std::vector<uint8_t> &cdmData)
 {
-    bool result = false;
     firebolt::rialto::InitDataType dataType = getRialtoInitDataType(initDataType);
     if (!m_cdmBackend)
     {
@@ -132,7 +116,7 @@ bool OpenCDMSession::generateRequest(const std::string &initDataType, const std:
         {
             m_log << info << "Successfully generated the request for the session";
             initializeCdmKeySessionId();
-            result = true;
+            return true;
         }
         else
         {
@@ -140,12 +124,11 @@ bool OpenCDMSession::generateRequest(const std::string &initDataType, const std:
         }
     }
 
-    return result;
+    return false;
 }
 
-bool OpenCDMSession::loadSession()
+bool OpenCDMSessionPrivate::loadSession()
 {
-    bool result = false;
     if (!m_cdmBackend)
     {
         m_log << error << "Cdm is NULL or not initialized";
@@ -157,20 +140,18 @@ bool OpenCDMSession::loadSession()
         if (m_cdmBackend->loadSession(m_rialtoSessionId))
         {
             m_log << info << "Successfully loaded the session";
-            result = true;
+            return true;
         }
         else
         {
             m_log << error << "Failed to load the session. Got drm error " << getLastDrmError();
         }
     }
-
-    return result;
+    return false;
 }
 
-bool OpenCDMSession::updateSession(const std::vector<uint8_t> &license)
+bool OpenCDMSessionPrivate::updateSession(const std::vector<uint8_t> &license)
 {
-    bool result = false;
     if (!m_cdmBackend)
     {
         m_log << error << "Cdm is NULL or not initialized";
@@ -182,7 +163,7 @@ bool OpenCDMSession::updateSession(const std::vector<uint8_t> &license)
         if (m_cdmBackend->updateSession(m_rialtoSessionId, license))
         {
             m_log << info << "Successfully updated the session";
-            result = true;
+            return true;
         }
         else
         {
@@ -190,10 +171,10 @@ bool OpenCDMSession::updateSession(const std::vector<uint8_t> &license)
         }
     }
 
-    return result;
+    return false;
 }
 
-bool OpenCDMSession::getChallengeData(std::vector<uint8_t> &challengeData)
+bool OpenCDMSessionPrivate::getChallengeData(std::vector<uint8_t> &challengeData)
 {
     if (!m_cdmBackend)
     {
@@ -223,8 +204,8 @@ bool OpenCDMSession::getChallengeData(std::vector<uint8_t> &challengeData)
     return true;
 }
 
-void OpenCDMSession::addProtectionMeta(GstBuffer *buffer, GstBuffer *subSample, const uint32_t subSampleCount,
-                                       GstBuffer *IV, GstBuffer *keyID, uint32_t initWithLast15)
+void OpenCDMSessionPrivate::addProtectionMeta(GstBuffer *buffer, GstBuffer *subSample, const uint32_t subSampleCount,
+                                              GstBuffer *IV, GstBuffer *keyID, uint32_t initWithLast15)
 {
     // Set key for Playready
     if (keyID && 0 == gst_buffer_get_size(keyID) && !m_playreadyKeyId.empty())
@@ -268,7 +249,7 @@ void OpenCDMSession::addProtectionMeta(GstBuffer *buffer, GstBuffer *subSample, 
     rialto_mse_add_protection_metadata(buffer, info);
 }
 
-bool OpenCDMSession::addProtectionMeta(GstBuffer *buffer)
+bool OpenCDMSessionPrivate::addProtectionMeta(GstBuffer *buffer)
 {
     GstProtectionMeta *protectionMeta = reinterpret_cast<GstProtectionMeta *>(gst_buffer_get_protection_meta(buffer));
     if (!protectionMeta)
@@ -317,9 +298,8 @@ bool OpenCDMSession::addProtectionMeta(GstBuffer *buffer)
     return true;
 }
 
-bool OpenCDMSession::closeSession()
+bool OpenCDMSessionPrivate::closeSession()
 {
-    bool result = false;
     if (!m_cdmBackend)
     {
         m_log << error << "Cdm is NULL or not initialized";
@@ -334,7 +314,7 @@ bool OpenCDMSession::closeSession()
             m_messageDispatcherClient.reset();
             m_challengeData.clear();
             m_keyStatuses.clear();
-            result = true;
+            return true;
         }
         else
         {
@@ -342,12 +322,11 @@ bool OpenCDMSession::closeSession()
         }
     }
 
-    return result;
+    return false;
 }
 
-bool OpenCDMSession::removeSession()
+bool OpenCDMSessionPrivate::removeSession()
 {
-    bool result = false;
     if (!m_cdmBackend)
     {
         m_log << error << "Cdm is NULL or not initialized";
@@ -359,7 +338,7 @@ bool OpenCDMSession::removeSession()
         if (m_cdmBackend->removeKeySession(m_rialtoSessionId))
         {
             m_log << info << "Successfully removed the session";
-            result = true;
+            return true;
         }
         else
         {
@@ -367,10 +346,10 @@ bool OpenCDMSession::removeSession()
         }
     }
 
-    return result;
+    return false;
 }
 
-bool OpenCDMSession::containsKey(const std::vector<uint8_t> &keyId)
+bool OpenCDMSessionPrivate::containsKey(const std::vector<uint8_t> &keyId)
 {
     if (!m_cdmBackend)
     {
@@ -385,7 +364,7 @@ bool OpenCDMSession::containsKey(const std::vector<uint8_t> &keyId)
     return false;
 }
 
-bool OpenCDMSession::setDrmHeader(const std::vector<uint8_t> &drmHeader)
+bool OpenCDMSessionPrivate::setDrmHeader(const std::vector<uint8_t> &drmHeader)
 {
     if (!m_cdmBackend)
     {
@@ -400,15 +379,16 @@ bool OpenCDMSession::setDrmHeader(const std::vector<uint8_t> &drmHeader)
     return false;
 }
 
-bool OpenCDMSession::selectKeyId(const std::vector<uint8_t> &keyId)
+bool OpenCDMSessionPrivate::selectKeyId(const std::vector<uint8_t> &keyId)
 {
     m_log << debug << "Playready key selected.";
     m_playreadyKeyId = keyId;
     return true;
 }
 
-void OpenCDMSession::onLicenseRequest(int32_t keySessionId, const std::vector<unsigned char> &licenseRequestMessage,
-                                      const std::string &url)
+void OpenCDMSessionPrivate::onLicenseRequest(int32_t keySessionId,
+                                             const std::vector<unsigned char> &licenseRequestMessage,
+                                             const std::string &url)
 {
     if (keySessionId == m_rialtoSessionId)
     {
@@ -422,7 +402,7 @@ void OpenCDMSession::onLicenseRequest(int32_t keySessionId, const std::vector<un
     }
 }
 
-void OpenCDMSession::onLicenseRenewal(int32_t keySessionId, const std::vector<unsigned char> &licenseRenewalMessage)
+void OpenCDMSessionPrivate::onLicenseRenewal(int32_t keySessionId, const std::vector<unsigned char> &licenseRenewalMessage)
 {
     if (keySessionId == m_rialtoSessionId)
     {
@@ -436,14 +416,15 @@ void OpenCDMSession::onLicenseRenewal(int32_t keySessionId, const std::vector<un
     }
 }
 
-void OpenCDMSession::updateChallenge(const std::vector<unsigned char> &challenge)
+void OpenCDMSessionPrivate::updateChallenge(const std::vector<unsigned char> &challenge)
 {
     std::unique_lock<std::mutex> lock{m_mutex};
     m_challengeData = challenge;
     m_challengeCv.notify_one();
 }
 
-void OpenCDMSession::onKeyStatusesChanged(int32_t keySessionId, const firebolt::rialto::KeyStatusVector &keyStatuses)
+void OpenCDMSessionPrivate::onKeyStatusesChanged(int32_t keySessionId,
+                                                 const firebolt::rialto::KeyStatusVector &keyStatuses)
 {
     if ((keySessionId == m_rialtoSessionId) && (m_callbacks) && (m_callbacks->key_update_callback))
     {
@@ -463,7 +444,7 @@ void OpenCDMSession::onKeyStatusesChanged(int32_t keySessionId, const firebolt::
     }
 }
 
-KeyStatus OpenCDMSession::status(const std::vector<uint8_t> &key) const
+KeyStatus OpenCDMSessionPrivate::status(const std::vector<uint8_t> &key) const
 {
     auto it = m_keyStatuses.find(key);
     if (it != m_keyStatuses.end())
@@ -473,19 +454,14 @@ KeyStatus OpenCDMSession::status(const std::vector<uint8_t> &key) const
     return KeyStatus::InternalError;
 }
 
-const std::string &OpenCDMSession::getSessionId() const
+const std::string &OpenCDMSessionPrivate::getSessionId() const
 {
     return m_cdmKeySessionId;
 }
 
-void OpenCDMSession::initializeCdmKeySessionId()
+void OpenCDMSessionPrivate::initializeCdmKeySessionId()
 {
     bool result{false};
-    if (!m_cdmBackend)
-    {
-        m_log << error << "Cdm is NULL or not initialized";
-        return;
-    }
 
     if (-1 != m_rialtoSessionId)
     {
@@ -497,7 +473,7 @@ void OpenCDMSession::initializeCdmKeySessionId()
     }
 }
 
-uint32_t OpenCDMSession::getLastDrmError() const
+uint32_t OpenCDMSessionPrivate::getLastDrmError() const
 {
     uint32_t err = 0;
     if (!m_cdmBackend)
@@ -511,7 +487,7 @@ uint32_t OpenCDMSession::getLastDrmError() const
     return err;
 }
 
-firebolt::rialto::KeySessionType OpenCDMSession::getRialtoSessionType(const LicenseType licenseType)
+firebolt::rialto::KeySessionType OpenCDMSessionPrivate::getRialtoSessionType(const LicenseType licenseType)
 {
     switch (licenseType)
     {
@@ -526,7 +502,7 @@ firebolt::rialto::KeySessionType OpenCDMSession::getRialtoSessionType(const Lice
     }
 }
 
-firebolt::rialto::InitDataType OpenCDMSession::getRialtoInitDataType(const std::string &type)
+firebolt::rialto::InitDataType OpenCDMSessionPrivate::getRialtoInitDataType(const std::string &type)
 {
     firebolt::rialto::InitDataType initDataType = firebolt::rialto::InitDataType::UNKNOWN;
 

@@ -36,90 +36,22 @@ add_compile_options(
   "-Wno-deprecated-declarations"
 )
 
-find_package( Rialto REQUIRED )
-find_package( ocdm REQUIRED )
 find_package( PkgConfig REQUIRED )
+find_package( Threads REQUIRED )
+
 pkg_check_modules( GStreamerApp REQUIRED IMPORTED_TARGET gstreamer-app-1.0 )
 
 if ( RIALTO_ENABLE_DECRYPT_BUFFER )
     add_compile_definitions( RIALTO_ENABLE_DECRYPT_BUFFER )
 endif()
 
-set(LIB_OCDM_RIALTO_SOURCES
-        source/open_cdm.cpp
-        source/open_cdm_adapter.cpp
-        source/open_cdm_ext.cpp
+# Config and target for building the unit tests
+if( NOT CMAKE_BUILD_FLAG STREQUAL "UnitTests" )
+    add_subdirectory(library)
+else() # UnitTests
+    include( cmake/googletest.cmake )
 
-        source/ActiveSessions.cpp
-        source/CdmBackend.cpp
-        source/Logger.cpp
-        source/MediaKeysCapabilitiesBackend.cpp
-        source/OpenCDMSession.cpp
-        source/OpenCDMSystem.cpp
-        source/MessageDispatcher.cpp
-        source/Utils.cpp
-        source/RialtoGStreamerEMEProtectionMetadata.cpp)
-
-add_library(ocdmRialto SHARED ${LIB_OCDM_RIALTO_SOURCES} )
-
-set_target_properties(
-        ocdmRialto
-        PROPERTIES LINK_FLAGS "-Wl,--unresolved-symbols=report-all"
-                   SOVERSION  ${PROJECT_VERSION_MAJOR}
-                   VERSION    ${CMAKE_PROJECT_VERSION}
-        )
-
-target_include_directories(
-        ocdmRialto
-
-        PUBLIC
-        $<INSTALL_INTERFACE:include/rialto>
-
-        PRIVATE
-        include
-        ${RIALTO_INCLUDE_DIR}
-        ${GStreamerApp_INCLUDE_DIRS}
-        )
-
-target_link_libraries(
-        ocdmRialto
-
-        PRIVATE
-        Rialto::RialtoClient
-        ${GStreamerApp_LIBRARIES}
-        )
-
-include( GNUInstallDirs )
-
-set (LIB_RIALTO_OCDM_PUBLIC_HEADERS
-        include/RialtoGStreamerEMEProtectionMetadata.h
-)
-
-configure_file(ocdmRialto.pc.in ocdmRialto.pc @ONLY)
-
-install (
-        FILES ${LIB_RIALTO_OCDM_PUBLIC_HEADERS}
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rialto
-)
-
-install(TARGETS ocdmRialto LIBRARY
-        DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-install(FILES "${CMAKE_BINARY_DIR}/ocdmRialto.pc"
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
-
-# Retrieve the commit ID
-execute_process(
-    COMMAND git rev-parse HEAD
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} 
-    RESULT_VARIABLE RESULT 
-    OUTPUT_VARIABLE COMMIT_ID 
-    OUTPUT_STRIP_TRAILING_WHITESPACE 
-)
-
-if(RESULT)
-    message("Failed to get git commit ID: ${RESULT}")
+    add_subdirectory( tests/third-party EXCLUDE_FROM_ALL )
+    add_subdirectory( tests/mocks EXCLUDE_FROM_ALL )
+    add_subdirectory( tests/ut EXCLUDE_FROM_ALL )
 endif()
-
-# Preprocesser Variable
-add_compile_definitions(COMMIT_ID="${COMMIT_ID}")
