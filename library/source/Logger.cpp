@@ -1,3 +1,22 @@
+/*
+ * If not stated otherwise in this file or this component's LICENSE file the
+ * following copyright and licenses apply:
+ *
+ * Copyright 2023 Sky UK
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "Logger.h"
 #include <chrono>
 #include <ctime>
@@ -82,11 +101,9 @@ int convertSeverity(const Severity &severity)
     case Severity::info:
         return LOG_INFO;
     case Severity::debug:
-        return LOG_DEBUG;
     default:
-        break;
+        return LOG_DEBUG;
     }
-    return LOG_DEBUG;
 }
 } // namespace
 
@@ -99,10 +116,6 @@ LogFile &LogFile::instance()
 bool LogFile::write(const std::string &line)
 {
     std::unique_lock<std::mutex> lock{m_mutex};
-    if (!m_file.is_open())
-    {
-        return false;
-    }
     m_file << line << std::endl;
     return true;
 }
@@ -112,7 +125,23 @@ bool LogFile::isEnabled() const
     return m_file.is_open();
 }
 
+void LogFile::reset()
+{
+    tryCloseFile();
+    tryOpenFile();
+}
+
 LogFile::LogFile()
+{
+    tryOpenFile();
+}
+
+LogFile::~LogFile()
+{
+    tryCloseFile();
+}
+
+void LogFile::tryOpenFile()
 {
     std::string logPath{getRialtoLogPath()};
     if (!logPath.empty())
@@ -123,7 +152,7 @@ LogFile::LogFile()
     }
 }
 
-LogFile::~LogFile()
+void LogFile::tryCloseFile()
 {
     if (m_file.is_open())
     {

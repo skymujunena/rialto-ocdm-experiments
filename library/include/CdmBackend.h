@@ -17,20 +17,24 @@
  * limitations under the License.
  */
 
-#ifndef CDMBACKEND_H
-#define CDMBACKEND_H
+#ifndef CDM_BACKEND_H_
+#define CDM_BACKEND_H_
 
 #include "ICdmBackend.h"
 #include "Logger.h"
 #include "MessageDispatcher.h"
 #include <IControlClient.h>
 #include <IMediaKeys.h>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <vector>
 
 class CdmBackend : public ICdmBackend, public firebolt::rialto::IControlClient
 {
 public:
-    CdmBackend(const std::string &keySystem, const std::shared_ptr<firebolt::rialto::IMediaKeysClient> &mediaKeysClient);
+    CdmBackend(const std::string &keySystem, const std::shared_ptr<firebolt::rialto::IMediaKeysClient> &mediaKeysClient,
+               const std::shared_ptr<firebolt::rialto::IMediaKeysFactory> &mediaKeysFactory);
     ~CdmBackend() override = default;
 
     void notifyApplicationState(firebolt::rialto::ApplicationState state) override;
@@ -65,7 +69,8 @@ private:
     firebolt::rialto::ApplicationState m_appState;
     const std::string m_keySystem;
     std::shared_ptr<firebolt::rialto::IMediaKeysClient> m_mediaKeysClient;
+    std::shared_ptr<firebolt::rialto::IMediaKeysFactory> m_mediaKeysFactory;
     std::unique_ptr<firebolt::rialto::IMediaKeys> m_mediaKeys;
 };
 
-#endif // CDMBACKEND_H
+#endif // CDM_BACKEND_H_

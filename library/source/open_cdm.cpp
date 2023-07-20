@@ -39,16 +39,8 @@ bool isPlayreadyKeysystem(const std::string &keySystem)
 
 OpenCDMSystem *opencdm_create_system(const char keySystem[])
 {
-    const char commitID[] = COMMIT_ID;
-
-    if (std::strlen(commitID) > 0)
-    {
-        kLog << info << "Commit ID: " << commitID;
-    }
-    else
-    {
-        kLog << warn << "Failed to get git commit ID.";
-    }
+    const std::string kCommitId{COMMIT_ID};
+    kLog << info << "Commit ID: " << (kCommitId.empty() ? "Unknown" : kCommitId.c_str());
 
     OpenCDMSystem *result = nullptr;
     opencdm_create_system_extended(keySystem, &result);
@@ -173,7 +165,6 @@ OpenCDMError opencdm_construct_session(struct OpenCDMSystem *system, const Licen
             return ERROR_FAIL;
         }
         std::vector<uint8_t> cdmDataVec((uint8_t *)(CDMData), (uint8_t *)(CDMData) + CDMDataLength);
-        std::vector<uint8_t> challenge;
 
         if (!newSession->generateRequest(initializationDataType, initDataVec, cdmDataVec /*not used yet*/))
         {
