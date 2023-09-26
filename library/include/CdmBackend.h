@@ -25,6 +25,7 @@
 #include "MessageDispatcher.h"
 #include <IControlClient.h>
 #include <IMediaKeys.h>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -66,6 +67,7 @@ private:
 private:
     Logger m_log;
     std::mutex m_mutex;
+    std::condition_variable m_cv;
     firebolt::rialto::ApplicationState m_appState;
     const std::string m_keySystem;
     std::shared_ptr<firebolt::rialto::IMediaKeysClient> m_mediaKeysClient;

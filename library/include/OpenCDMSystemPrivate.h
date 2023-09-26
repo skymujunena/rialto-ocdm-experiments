@@ -21,6 +21,7 @@
 #define OPENCDM_SYSTEM_PRIVATE_H_
 
 #include "CdmBackend.h"
+#include "Logger.h"
 #include "MessageDispatcher.h"
 #include "OpenCDMSystem.h"
 #include <IControl.h>
@@ -36,7 +37,7 @@ public:
     OpenCDMSystemPrivate(const std::string &system, const std::string &metadata,
                          const std::shared_ptr<MessageDispatcher> &messageDispatcher,
                          const std::shared_ptr<CdmBackend> &cdmBackend);
-    ~OpenCDMSystemPrivate() = default;
+    ~OpenCDMSystemPrivate();
     OpenCDMSystemPrivate(const OpenCDMSystemPrivate &) = default;
     OpenCDMSystemPrivate(OpenCDMSystemPrivate &&) = default;
     OpenCDMSystemPrivate &operator=(OpenCDMSystemPrivate &&) = default;
@@ -53,6 +54,7 @@ public:
     bool deleteDrmStore() const;
 
 private:
+    Logger m_log;
     std::string m_keySystem;
     std::string m_metadata;
     std::shared_ptr<firebolt::rialto::IControl> m_control;
